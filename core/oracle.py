@@ -6,7 +6,7 @@ class OracleCore:
         # [Traffic, Panic, Energy, Bio]
         self.state_vector = np.array([0.2, 0.1, 1.0, 0.3]) 
         
-        # Transition Matrix (4x4)
+        # Transition Matrix
         self.transition_matrix = np.array([
             [0.8,  0.0, -0.1,  0.0],
             [0.2,  0.9, -0.3,  0.4],
@@ -14,7 +14,7 @@ class OracleCore:
             [0.4,  0.0, -0.5,  0.8]
         ])
 
-    # FIXED: Accepts 'b_data' so the error stops
+    # FIXED: Now accepts 4 inputs (plus self = 5 args total)
     def sync_senses(self, t_data, f_data, e_data, b_data):
         t = t_data.get('congestion', 0)
         f = f_data.get('panic_score', 0) / 100.0
