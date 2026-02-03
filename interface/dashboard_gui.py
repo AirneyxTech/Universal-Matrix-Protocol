@@ -48,12 +48,11 @@ col_health, col_status = st.columns([1, 3])
 with col_health: system_health = st.empty()
 with col_status: vector_display = st.empty()
 
-# --- TABS (The Layout You Liked) ---
+# --- TABS ---
 tab_traffic, tab_finance, tab_energy, tab_sim = st.tabs(["🚦 TRAFFIC", "💰 FINANCE", "⚡ POWER", "🕹️ SIM"])
 
 with tab_traffic:
     traffic_header = st.empty()
-    # THIS IS WHERE WE PUT THE CARS BACK
     col1, col2 = st.columns(2)
     with col1: traffic_load = st.empty() # Congestion + Cars
     with col2: traffic_burn = st.empty() # Money Lost
@@ -83,7 +82,7 @@ if st.button("🚀 RELOAD SYSTEM"):
         t_data, f_data, e_data, b_data = {'congestion': 0}, {'panic_score': 0}, {'status': 'GRID ACTIVE'}, {'aqi': 50}
         lat, lng = 6.5244, 3.3792
         
-        # 1. TRAFFIC LOGIC (GET THE CARS)
+        # 1. TRAFFIC
         try:
             target = target_input if scan_mode == "MANUAL SCAN" else "Lekki-Epe"
             found_lat, found_lng, addr = grok.find_coordinates(target + " Lagos")
@@ -92,15 +91,14 @@ if st.button("🚀 RELOAD SYSTEM"):
                 lat, lng = found_lat, found_lng
                 t_data = grok.get_traffic_data(lat, lng)
             
-            # CALCULATE THE CAR COUNT & MONEY
+            # CALCULATE CARS & MONEY
             loss = deepseek.compute_precise_loss(target, t_data.get('congestion',0), fuel_price)
             
-            # DISPLAY IT (The way you want it)
             traffic_header.info(f"📍 {addr}")
             traffic_load.metric("CONGESTION", f"{int(t_data.get('congestion',0)*100)}%", delta=f"{loss['cars_stuck']:,} Cars Stuck")
             traffic_burn.metric("MONEY BURN", f"₦ {loss['total_burn']:,.0f}/hr", delta="Wasted Fuel", delta_color="inverse")
             
-            # MAP (With Force Fallback)
+            # MAP (Force Draw)
             map_data = pd.DataFrame({'lat': [lat], 'lon': [lng]})
             map_display.map(map_data, zoom=12, size=60, color="#00ff41")
             
@@ -112,9 +110,9 @@ if st.button("🚀 RELOAD SYSTEM"):
             news = news_bot.scan_network()
             real_panic = news['panic_factor'] * 100
             bio = bio_bot.get_vital_signs()
-            b_data = bio # Store for Oracle
+            b_data = bio 
             
-            finance_price.metric("BTC Price", "LOADING...") # Placeholder or hook up midas if active
+            finance_price.metric("BTC Price", "LOADING...")
             finance_panic.metric("PANIC SCORE", f"{real_panic:.0f}%", delta=news['headline'][:20])
             f_data = {'panic_score': real_panic}
         except: pass
@@ -131,14 +129,13 @@ if st.button("🚀 RELOAD SYSTEM"):
 
         # 4. ORACLE (BRAIN)
         try:
-            # Sync Senses (Now passing 4 args correctly)
-            current_vector = oracle.sync_senses(t_data, f_data, e_data, b_data)
+            # CALLING THE NEW FUNCTION NAME: sync_matrix
+            current_vector = oracle.sync_matrix(t_data, f_data, e_data, b_data)
             health = oracle.get_system_health()
             
             system_health.metric("SYSTEM INTEGRITY", f"{health:.1f}%", delta="Live Pulse")
             vector_display.code(f"S(t) = {current_vector}")
 
-            # Simulation
             impact = [0.0, 0.0, 0.0, 0.0]
             if sim_blackout: impact[2] = -1.0
             if sim_traffic > 0: impact[0] = sim_traffic
