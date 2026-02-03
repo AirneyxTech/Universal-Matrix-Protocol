@@ -3,63 +3,54 @@ import pandas as pd
 
 class OracleCore:
     def __init__(self):
-        # THE GLOBAL STATE VECTOR (S)
-        # Index 0: Traffic Congestion (0.0 - 1.0)
-        # Index 1: Economic Panic (0.0 - 1.0)
-        # Index 2: Grid Stability (0.0 = Blackout, 1.0 = Stable)
-        self.state_vector = np.array([0.0, 0.0, 1.0]) 
+        # THE GLOBAL STATE VECTOR S(t) (4 Dimensions)
+        # [0] Traffic (0-1)
+        # [1] Panic (0-1)
+        # [2] Energy (1=Stable, 0=Blackout)
+        # [3] Biology (0=Clean, 1=Toxic)
+        self.state_vector = np.array([0.2, 0.1, 1.0, 0.3]) 
         
         # THE TRANSITION MATRIX (T)
-        # This represents the "Laws of Reality" (How one sector affects another)
-        # Example: High Traffic (Row 0) causes Economic Panic (Col 1) to rise.
+        # How sectors affect each other
         self.transition_matrix = np.array([
-            [0.9,  0.2, -0.1],  # Traffic self-sustains + adds Panic + drains Grid
-            [0.0,  0.9,  0.0],  # Panic self-sustains
-            [-0.1, -0.2, 0.8]   # Traffic & Panic degrade Grid Stability
+            [0.8,  0.0, -0.1,  0.0],  # Traffic Logic
+            [0.2,  0.9, -0.3,  0.4],  # Panic rises if Energy drops (-0.3) or Bio is Toxic (0.4)
+            [-0.1, -0.1, 0.9,  0.0],  # Energy Logic
+            [0.4,  0.0, -0.5,  0.8]   # Bio (Pollution) rises with Traffic (0.4) & Blackouts (-0.5 Energy)
         ])
 
-    def sync_senses(self, traffic_data, finance_data, energy_data):
-        """
-        Fuses raw data from agents into the Normalized State Vector
-        """
-        # 1. Normalize Traffic (0-100% -> 0.0-1.0)
-        t_score = traffic_data.get('congestion', 0)
+    def sync_senses(self, t_data, f_data, e_data, b_data):
+        # Normalize Inputs
+        t_score = t_data.get('congestion', 0)
+        f_score = f_data.get('panic_score', 0) / 100.0
+        e_score = 1.0 if e_data.get('status') == "GRID ACTIVE" else 0.0
+        b_score = min(1.0, b_data.get('aqi', 0) / 100.0) # Normalize AQI
         
-        # 2. Normalize Finance (Panic Score 0-100 -> 0.0-1.0)
-        f_score = finance_data.get('panic_score', 0) / 100.0
-        
-        # 3. Normalize Energy (ON=1.0, OFF=0.0)
-        e_score = 1.0 if energy_data.get('status') == "GRID ACTIVE" else 0.0
-        
-        # Update the Vector
-        self.state_vector = np.array([t_score, f_score, e_score])
+        self.state_vector = np.array([t_score, f_score, e_score, b_score])
         return self.state_vector
 
-    def simulate_future(self, steps=3):
+    def simulate_future(self, steps=12, impact_override=None):
         """
-        Predicts the future state S(t+n) using Matrix Multiplication
+        Predicts future. 'impact_override' allows users to simulate 'What If' scenarios.
         """
         future_states = []
         current_s = self.state_vector.copy()
         
+        # Apply User Override (e.g., "Simulate a Blackout")
+        if impact_override:
+            current_s = current_s + np.array(impact_override)
+            current_s = np.clip(current_s, 0.0, 1.0)
+
         for _ in range(steps):
-            # THE MASTER EQUATION: S(t+1) = T * S(t)
             next_s = np.dot(self.transition_matrix, current_s)
-            
-            # Clip values to stay realistic (0.0 to 1.0)
             next_s = np.clip(next_s, 0.0, 1.0)
-            
             future_states.append(next_s)
             current_s = next_s
             
         return future_states
 
     def get_system_health(self):
-        """
-        Returns the overall 'Health' of the System (Inverse of Entropy)
-        """
-        # Simple average of stability metrics
-        # (1 - Traffic) + (1 - Panic) + (Grid)
-        t, f, e = self.state_vector
-        health = ((1.0 - t) + (1.0 - f) + e) / 3.0
+        t, f, e, b = self.state_vector
+        # Health = Low Traffic + Low Panic + High Energy + Low Pollution
+        health = ((1.0 - t) + (1.0 - f) + e + (1.0 - b)) / 4.0
         return health * 100
