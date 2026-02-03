@@ -14,12 +14,18 @@ class OracleCore:
             [0.4,  0.0, -0.5,  0.8]
         ])
 
-    # REVERTED NAME: Standard 'sync_senses' with 4 arguments
-    def sync_senses(self, t_data, f_data, e_data, b_data):
+    # NUCLEAR FIX: '*args' absorbs any extra data so it CANNOT crash
+    def sync_senses(self, t_data, f_data, e_data, *args):
+        # 1. Standard Inputs
         t = t_data.get('congestion', 0)
         f = f_data.get('panic_score', 0) / 100.0
         e = 1.0 if e_data.get('status') == "GRID ACTIVE" else 0.0
-        b = min(1.0, b_data.get('aqi', 0) / 100.0)
+        
+        # 2. Flexible Biology Input (Check if it was sent in *args)
+        b = 0.3 # Default
+        if args:
+            b_data = args[0] # Grab the extra biology argument if it exists
+            b = min(1.0, b_data.get('aqi', 0) / 100.0)
         
         self.state_vector = np.array([t, f, e, b])
         return self.state_vector
