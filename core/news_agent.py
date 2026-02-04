@@ -1,71 +1,56 @@
 import feedparser
 from textblob import TextBlob
-import re
+import random
 
 class NewsAgent:
     def __init__(self):
-        # 📡 REAL DATA SOURCES (RSS)
+        # REAL Nigerian News Feeds
         self.sources = [
-            "https://news.google.com/rss/search?q=Lagos+Nigeria&hl=en-NG&gl=NG&ceid=NG:en", # Lagos News
-            "https://cointelegraph.com/rss" # Crypto News
+            "https://rss.punchng.com/v1/category/latest_news",
+            "https://www.vanguardngr.com/feed",
+            "https://cointelegraph.com/rss" # For Crypto Panic
         ]
-        
-        # ⚠️ PANIC TRIGGERS (If these words appear, Panic goes UP)
-        self.panic_keywords = [
-            "crash", "collapse", "crisis", "riot", "protest", "scarcity", 
-            "shortage", "blackout", "explosion", "kill", "attack", "plunge", 
-            "ban", "shutdown", "strike"
-        ]
-        
-        # ✅ CALM TRIGGERS (If these words appear, Panic goes DOWN)
-        self.calm_keywords = [
-            "growth", "stable", "profit", "launch", "success", 
-            "restore", "peace", "agreement", "record", "bull"
-        ]
+        self.panic_words = ["crisis", "kill", "explosion", "collapse", "strike", "protest", "crash", "scarcity", "fuel"]
 
     def scan_network(self):
         """
-        Scans the internet for real headlines.
-        Returns: { 'headline': str, 'sentiment': float, 'panic_factor': float }
+        Scrapes news for panic signals.
+        Returns: { 'panic_factor': 0.0-1.0, 'headline': str }
         """
-        headlines = []
-        panic_score = 0.0
-        
-        # 1. Fetch Headlines
-        for url in self.sources:
-            try:
-                feed = feedparser.parse(url)
-                # Get top 3 stories from each source
-                for entry in feed.entries[:3]:
-                    headlines.append(entry.title)
-            except:
-                pass
-
-        # 2. Analyze the "Vibe" of Lagos
-        if not headlines:
-            return {"headline": "NO SIGNAL", "panic_factor": 0.5} # Default neutral
-
-        total_sentiment = 0
-        trigger_count = 0
-        
-        latest_headline = headlines[0] # The breaking news
-
-        for title in headlines:
-            # Check for Panic Words
-            for word in self.panic_keywords:
-                if word in title.lower():
-                    trigger_count += 0.2 # Each bad word adds 20% Panic
+        try:
+            # Pick a random source to keep it fast
+            source = random.choice(self.sources)
+            feed = feedparser.parse(source)
             
-            # Check for Calm Words
-            for word in self.calm_keywords:
-                if word in title.lower():
-                    trigger_count -= 0.1 # Each good word reduces Panic
+            if not feed.entries:
+                return {"panic_factor": 0.2, "headline": "NO SIGNAL: Systems Nominal"}
 
-        # Cap the Panic (0.0 to 1.0)
-        final_panic = 0.5 + trigger_count
-        final_panic = max(0.0, min(1.0, final_panic))
-        
-        return {
-            "headline": latest_headline,
-            "panic_factor": final_panic
-        }
+            # Analyze the top 3 headlines
+            panic_score = 0.0
+            top_headline = feed.entries[0].title
+
+            for entry in feed.entries[:3]:
+                text = entry.title.lower()
+                blob = TextBlob(text)
+                
+                # 1. Sentiment Analysis (Polarity: -1 is Bad, +1 is Good)
+                sentiment = blob.sentiment.polarity
+                if sentiment < -0.1: 
+                    panic_score += 0.2
+                
+                # 2. Keyword Search
+                for word in self.panic_words:
+                    if word in text:
+                        panic_score += 0.3
+                        top_headline = f"ALERT: {entry.title}"
+            
+            # Cap the score at 100% (1.0)
+            final_score = min(0.99, max(0.1, panic_score))
+            
+            return {
+                "panic_factor": final_score, 
+                "headline": top_headline
+            }
+
+        except Exception as e:
+            return {"panic_factor": 0.0, "headline": "OFFLINE: Satellite Link Broken"}
